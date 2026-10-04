@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { X, Building2, Plus, ArrowLeft, Mail, Phone } from "lucide-react";
+import { X, Building2, Mail, Phone, MapPin } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
 import SearchBar from "../components/SearchBar";
 import FilterDropdown from "../components/FilterDropdown";
@@ -8,6 +8,7 @@ import ConfirmationModal from "../components/ConfirmationModal";
 import EmptyState from "../components/EmptyState";
 import StatusBadge from "../components/StatusBadge";
 import useAdmin from "../hook/useAdmin";
+import { formatPrice } from "../../../utils/formatPrice";
 
 const CATEGORIES = [
   "Apartment",
@@ -19,353 +20,376 @@ const CATEGORIES = [
   "Office",
   "Shop",
   "Warehouse",
-  "Agricultural Land"
+  "Agricultural Land",
 ];
 const CITIES = ["Bhopal", "Indore", "Delhi", "Mumbai", "Pune", "Bangalore"];
-const STATUSES = [
-  { label: "For Sale", value: "For Sale" },
-  { label: "Sold", value: "Sold" },
-];
+const STATUSES = ["For Sale", "Sold"];
+const AREA_UNITS = { sqft: "sq ft", acre: "acres", acres: "acres" };
+const ITEMS_PER_PAGE = 8;
+const CLOSED_MODAL = { isOpen: false, type: "", propertyId: null };
 
 export default function AdminProperties() {
   const {
-    allProperties,
+    allProperties = [],
     handleGetAllProperties,
     handleMarkPropertyAsSold,
     handleDeleteProperty,
   } = useAdmin();
 
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [city, setCity] = useState("");
   const [status, setStatus] = useState("");
-
-  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 8;
-
-  // Selected Detail Modal
   const [selectedProperty, setSelectedProperty] = useState(null);
-
-  // Confirmation Modals
-  const [confirmModal, setConfirmModal] = useState({
-    isOpen: false,
-    type: "", // "sold" or "delete"
-    propertyId: null,
-  });
+  const [confirmModal, setConfirmModal] = useState(CLOSED_MODAL);
 
   useEffect(() => {
     async function loadProperties() {
       setLoading(true);
-      await handleGetAllProperties();
-      setLoading(false);
+      try {
+        await handleGetAllProperties();
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
     }
     loadProperties();
   }, []);
 
-  // Filtering Logic
+  // Close the details modal with Escape
+  useEffect(() => {
+    if (!selectedProperty) return;
+    const onKey = (e) => e.key === "Escape" && setSelectedProperty(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedProperty]);
+
+  const hasFilters = Boolean(search || category || city || status);
+
+  const clearFilters = () => {
+    setSearch("");
+    setCategory("");
+    setCity("");
+    setStatus("");
+  };
+
   const filteredProperties = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return allProperties.filter((p) => {
       const matchesSearch =
-        !search ||
-        p.title.toLowerCase().includes(search.toLowerCase()) ||
-        p.createdBy?.fullname?.toLowerCase().includes(search.toLowerCase()) ||
-        p._id.includes(search);
-      const matchesCategory = !category || p.category === category;
-      const matchesCity = !city || p.city === city;
-      const matchesStatus = !status || p.status === status;
-
-      return matchesSearch && matchesCategory && matchesCity && matchesStatus;
+        !q ||
+        p.title?.toLowerCase().includes(q) ||
+        p.createdBy?.fullname?.toLowerCase().includes(q) ||
+        p._id?.toLowerCase().includes(q);
+      return (
+        matchesSearch &&
+        (!category || p.category === category) &&
+        (!city || p.city === city) &&
+        (!status || p.status === status)
+      );
     });
   }, [allProperties, search, category, city, status]);
 
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredProperties.length / itemsPerPage);
-  const paginatedProperties = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredProperties.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredProperties, currentPage, itemsPerPage]);
+  const totalPages = Math.ceil(filteredProperties.length / ITEMS_PER_PAGE);
 
-  // Reset page when filters change
+  const paginatedProperties = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredProperties.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredProperties, currentPage]);
+
+  // Go back to page 1 whenever a filter changes
   useEffect(() => {
     setCurrentPage(1);
   }, [search, category, city, status]);
 
-  // Trigger Confirmation Modals
-  const triggerMarkSold = (id) => {
-    setConfirmModal({
-      isOpen: true,
-      type: "sold",
-      propertyId: id,
-    });
-  };
+  // If the last item on a page is deleted, step back a page
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) setCurrentPage(totalPages);
+  }, [totalPages, currentPage]);
 
-  const triggerDelete = (id) => {
-    setConfirmModal({
-      isOpen: true,
-      type: "delete",
-      propertyId: id,
-    });
-  };
+  const openConfirm = (type) => (id) =>
+    setConfirmModal({ isOpen: true, type, propertyId: id });
 
-  // Perform Actions
   const handleConfirmAction = async () => {
     const { type, propertyId } = confirmModal;
     if (!propertyId) return;
 
-    setLoading(true);
-    if (type === "sold") {
-      await handleMarkPropertyAsSold(propertyId);
-    } else if (type === "delete") {
-      await handleDeleteProperty(propertyId);
+    setActionLoading(true);
+    try {
+      if (type === "sold") await handleMarkPropertyAsSold(propertyId);
+      else if (type === "delete") await handleDeleteProperty(propertyId);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setActionLoading(false);
+      setConfirmModal(CLOSED_MODAL);
     }
-    setLoading(false);
-    setConfirmModal({ isOpen: false, type: "", propertyId: null });
   };
+
+  const pageButton =
+    "rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
     <AdminLayout>
-      <div className="space-y-6 text-left animate-in fade-in duration-300">
-        
-        {/* Header Title */}
-        <div className="flex items-end justify-between">
-    <div>
-        {/* <p className="uppercase tracking-[4px] text-xs text-stone-500 font-semibold">
-            Admin Panel
-        </p> */}
+      <div className="mx-auto w-full max-w-8xl space-y-8 px-7 py-2 text-left">
+        {/* ─── Header ─── */}
+        <section>
+          <h1
+            className="text-3xl font-extrabold tracking-tight text-gray-900"
+            style={{ fontFamily: "'Manrope', sans-serif" }}
+          >
+            Property listings
+          </h1>
+          <p className="mt-2 text-sm text-gray-500">
+            {loading
+              ? "Loading listings..."
+              : `Manage all ${allProperties.length} properties on the platform.`}
+          </p>
+        </section>
 
-        <h1 className="text-4xl font-bold text-stone-900 mt-2">
-            Property Listings
-        </h1>
-            <br />
-        {/* <p className="text-stone-500 mt-2">
-            Manage all listed properties across the platform.
-        </p> */}
-    </div>
-
-    <div className="mb-4">
-    <p className="text-xs uppercase tracking-[3px] text-stone-500">
-        Filters
-    </p>
-</div>
-</div>
-
-        {/* ─── Filters Row ─── */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col md:flex-row gap-3">
-          {/* <SearchBar
-            value={search}
-            onChange={setSearch}
-            placeholder="Search title, seller, ID..."
-            className="flex-1"
-          /> */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-30">
-            <FilterDropdown
-              label="All Categories"
-              value={category}
-              onChange={setCategory}
-              options={CATEGORIES}
-              className="w-full sm:w-44"
+        {/* ─── Filters ─── */}
+        <section className="space-y-4 rounded-2xl border border-stone-200 bg-white p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <SearchBar
+              value={search}
+              onChange={setSearch}
+              placeholder="Search by title, seller or ID"
+              className="flex-1"
             />
-            <FilterDropdown
-              label="All Cities"
-              value={city}
-              onChange={setCity}
-              options={CITIES}
-              className="w-full sm:w-40"
-            />
-          </div>
-        </div>
-
-        {/* Count Indicator */}
-        <div className="flex justify-between items-center">
-            <br />
-    <p className="text-stone-500">
-        Showing
-        <span className="font-semibold text-stone-900">
-            {" "}
-            {filteredProperties.length}
-        </span>
-        {" "}properties
-    </p>
-</div>
-
-        {/* ─── Table Section ─── */}
-        {loading ? (
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center space-y-8 shadow-xs">
-            <div className="flex items-center justify-center py-16">
-              <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <FilterDropdown
+                label="All categories"
+                value={category}
+                onChange={setCategory}
+                options={CATEGORIES}
+                className="w-full sm:w-44"
+              />
+              <FilterDropdown
+                label="All cities"
+                value={city}
+                onChange={setCity}
+                options={CITIES}
+                className="w-full sm:w-40"
+              />
+              <FilterDropdown
+                label="All statuses"
+                value={status}
+                onChange={setStatus}
+                options={STATUSES}
+                className="w-full sm:w-40"
+              />
             </div>
           </div>
+
+          <div className="flex items-center justify-between border-t border-stone-100 pt-3 text-sm">
+            <p className="text-gray-500">
+              Showing{" "}
+              <span className="font-semibold text-gray-900">
+                {filteredProperties.length}
+              </span>{" "}
+              {filteredProperties.length === 1 ? "property" : "properties"}
+            </p>
+            {hasFilters && (
+              <button
+                onClick={clearFilters}
+                className="font-semibold text-gray-700 underline-offset-4 transition hover:text-gray-950 hover:underline"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        </section>
+
+        {/* ─── Table ─── */}
+        {loading ? (
+          <div className="flex items-center justify-center rounded-2xl border border-stone-200 bg-white py-24">
+            <div
+              className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-gray-800"
+              role="status"
+              aria-label="Loading properties"
+            />
+          </div>
         ) : filteredProperties.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-xs">
+          <div className="rounded-2xl border border-stone-200 bg-white">
             <EmptyState
               icon={Building2}
               title="No properties found"
-              description="Try adjusting your filters or search terms."
-              action={{
-                label: "Clear All Filters",
-                onClick: () => {
-                  setSearch("");
-                  setCategory("");
-                  setCity("");
-                  setStatus("");
-                },
-              }}
+              description="Try a different search or remove some filters."
+              action={{ label: "Clear filters", onClick: clearFilters }}
             />
           </div>
         ) : (
-          <div className="space-y-6">
-            <PropertyTable
-              properties={paginatedProperties}
-              onView={setSelectedProperty}
-              onMarkSold={triggerMarkSold}
-              onDelete={triggerDelete}
-            />
+          <section className="space-y-5">
+            <div className={actionLoading ? "pointer-events-none opacity-60 transition" : "transition"}>
+              <PropertyTable
+                properties={paginatedProperties}
+                onView={setSelectedProperty}
+                onMarkSold={openConfirm("sold")}
+                onDelete={openConfirm("delete")}
+              />
+            </div>
 
-            {/* Pagination Controls */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-2 pt-2 text-xs">
-                <p className="text-gray-400 font-medium">
-                  Page <span className="font-bold text-gray-850">{currentPage}</span> of{" "}
-                  <span className="font-bold text-gray-850">{totalPages}</span>
+              <div className="flex items-center justify-between px-1">
+                <p className="text-sm text-gray-500">
+                  Page <span className="font-semibold text-gray-900">{currentPage}</span> of{" "}
+                  <span className="font-semibold text-gray-900">{totalPages}</span>
                 </p>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setCurrentPage((c) => Math.max(c - 1, 1))}
                     disabled={currentPage === 1}
-                    className="px-3.5 py-2 border border-gray-200 bg-white hover:bg-gray-50 rounded-xl text-gray-700 font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                    className={pageButton}
                   >
                     Previous
                   </button>
                   <button
                     onClick={() => setCurrentPage((c) => Math.min(c + 1, totalPages))}
                     disabled={currentPage === totalPages}
-                    className="px-3.5 py-2 border border-gray-200 bg-white hover:bg-gray-50 rounded-xl text-gray-700 font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                    className={pageButton}
                   >
                     Next
                   </button>
                 </div>
               </div>
             )}
-          </div>
+          </section>
         )}
-
       </div>
 
       {/* ─── Property details modal ─── */}
       {selectedProperty && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/35 backdrop-blur-xs" onClick={() => setSelectedProperty(null)} />
-          <div className="relative bg-white border border-gray-200 rounded-2xl shadow-xl w-full max-w-lg z-10 overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
-            
-            {/* Header */}
-            <div className="px-6 py-6 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="font-bold text-gray-900 text-sm" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                Property Details Info
-              </h3>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Property details"
+        >
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setSelectedProperty(null)}
+          />
+
+          <div className="relative z-10 flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="relative h-56 shrink-0 bg-gray-100">
+              <img
+                src={
+                  selectedProperty.propertyImages?.[0] ||
+                  "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&q=80"
+                }
+                alt={selectedProperty.title}
+                className="h-full w-full object-cover"
+              />
               <button
                 onClick={() => setSelectedProperty(null)}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                aria-label="Close"
+                className="absolute right-4 top-4 rounded-full bg-white/90 p-2 text-gray-700 shadow transition hover:bg-white hover:text-gray-950"
               >
-                <X className="w-4 h-4" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Scrollable Body */}
-            <div className="overflow-y-auto p-6 space-y-5 text-left">
-              {/* Image */}
-              <div className="h-48 rounded-xl overflow-hidden bg-gray-50 border border-gray-150">
-                <img
-                  src={selectedProperty.propertyImages?.[0] || "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&q=80"}
-                  alt={selectedProperty.title}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-
-              {/* Title & Price */}
-              <div className="space-y-1">
-                <h2 className="text-base font-bold text-gray-900" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                  {selectedProperty.title}
-                </h2>
-                <div className="flex items-center gap-3">
-                  <span className="text-base font-extrabold text-gray-950">₹ {selectedProperty.price.toLocaleString("en-IN")}</span>
+            <div className="space-y-6 overflow-y-auto p-7">
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-4">
+                  <h2
+                    className="text-xl font-bold leading-snug text-gray-900"
+                    style={{ fontFamily: "'Manrope', sans-serif" }}
+                  >
+                    {selectedProperty.title}
+                  </h2>
                   <StatusBadge status={selectedProperty.status} />
                 </div>
+                <p className="flex items-center gap-1.5 text-sm text-gray-500">
+                  <MapPin className="h-4 w-4" />
+                  {[selectedProperty.city, selectedProperty.state]
+                    .filter(Boolean)
+                    .join(", ")}
+                </p>
+                <p className="text-2xl font-extrabold text-gray-950">
+                  {formatPrice(selectedProperty.price)}
+                </p>
               </div>
 
-              {/* Specifications */}
-              <div className="grid grid-cols-2 gap-y-3.5 gap-x-4 bg-gray-50 border border-gray-100 rounded-xl p-4 text-xs font-semibold text-gray-650">
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-5 rounded-2xl border border-stone-200 bg-stone-50 p-5 text-sm">
                 <div>
-                  <span className="text-gray-400 block font-normal text-[10px] uppercase tracking-wider mb-0.5">Category</span>
-                  <span className="text-gray-800 font-bold">{selectedProperty.category}</span>
+                  <dt className="text-xs text-gray-500">Category</dt>
+                  <dd className="mt-1 font-semibold text-gray-900">
+                    {selectedProperty.category}
+                  </dd>
                 </div>
                 <div>
-                  <span className="text-gray-400 block font-normal text-[10px] uppercase tracking-wider mb-0.5">City Location</span>
-                  <span className="text-gray-800 font-bold">{selectedProperty.city}</span>
+                  <dt className="text-xs text-gray-500">Area</dt>
+                  <dd className="mt-1 font-semibold text-gray-900">
+                    {selectedProperty.area}{" "}
+                    {AREA_UNITS[selectedProperty.areaUnit] || selectedProperty.areaUnit || ""}
+                  </dd>
                 </div>
                 <div>
-                  <span className="text-gray-400 block font-normal text-[10px] uppercase tracking-wider mb-0.5">Built Area</span>
-                  <span className="text-gray-800 font-bold">{selectedProperty.area} sqft</span>
+                  <dt className="text-xs text-gray-500">Bedrooms</dt>
+                  <dd className="mt-1 font-semibold text-gray-900">
+                    {selectedProperty.bedrooms}
+                  </dd>
                 </div>
                 <div>
-                  <span className="text-gray-400 block font-normal text-[10px] uppercase tracking-wider mb-0.5">Configurations</span>
-                  <span className="text-gray-800 font-bold">{selectedProperty.bedrooms} BHK ({selectedProperty.bathrooms} Bath)</span>
+                  <dt className="text-xs text-gray-500">Bathrooms</dt>
+                  <dd className="mt-1 font-semibold text-gray-900">
+                    {selectedProperty.bathrooms}
+                  </dd>
                 </div>
-              </div>
+              </dl>
 
-              {/* Seller details */}
-              <div className="border-t border-gray-100 pt-4 space-y-3">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Seller Contact details</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-700 text-xs border border-gray-200">
-                    {selectedProperty.createdBy?.fullname?.charAt(0) || "U"}
+              <div className="rounded-2xl border border-stone-200 p-5">
+                <p className="mb-4 text-sm font-semibold text-gray-900">Seller</p>
+                <div className="flex items-center gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-900 text-sm font-bold text-white">
+                    {selectedProperty.createdBy?.fullname?.charAt(0)?.toUpperCase() || "U"}
                   </div>
-                  <div>
-                    <p className="text-xs font-bold text-gray-800">
-  {selectedProperty.createdBy?.fullname}
-</p>
-                    <div className="text-[10px] text-gray-400 space-y-0.5 mt-0.5">
-                      <p className="flex items-center gap-1">
-                        <Mail className="w-3 h-3 text-gray-400" />
-                        {selectedProperty.createdBy?.email}
-                      </p>
-                      <p className="flex items-center gap-1">
-                        <Phone className="w-3 h-3 text-gray-400" />
-                        {selectedProperty.createdBy?.contact}
-                      </p>
-                    </div>
+                  <div className="min-w-0 space-y-1 text-sm">
+                    <p className="font-semibold text-gray-900">
+                      {selectedProperty.createdBy?.fullname}
+                    </p>
+                    <p className="flex items-center gap-2 text-gray-500">
+                      <Mail className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{selectedProperty.createdBy?.email}</span>
+                    </p>
+                    <p className="flex items-center gap-2 text-gray-500">
+                      <Phone className="h-3.5 w-3.5 shrink-0" />
+                      {selectedProperty.createdBy?.contact}
+                    </p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+            <div className="flex justify-end border-t border-stone-200 bg-stone-50 px-7 py-4">
               <button
                 onClick={() => setSelectedProperty(null)}
-                className="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-100 rounded-xl transition-colors"
+                className="rounded-xl border border-stone-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-stone-100"
               >
-                Close View
+                Close
               </button>
             </div>
-
           </div>
         </div>
       )}
 
-      {/* ─── Confirmation Modal ─── */}
+      {/* ─── Confirmation modal ─── */}
       <ConfirmationModal
         isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal({ isOpen: false, type: "", propertyId: null })}
+        onClose={() => setConfirmModal(CLOSED_MODAL)}
         onConfirm={handleConfirmAction}
-        title={confirmModal.type === "sold" ? "Mark Property as Sold" : "Delete Property Listing"}
+        title={confirmModal.type === "sold" ? "Mark property as sold" : "Delete property listing"}
         message={
           confirmModal.type === "sold"
-            ? "Are you sure you want to mark this property as Sold? This will update the availability status on the frontend platform."
-            : "Warning: Are you sure you want to delete this listing? This action is permanent and cannot be undone."
+            ? "This will mark the property as Sold and update its availability on the website."
+            : "This will permanently delete the listing. This can't be undone."
         }
-        confirmText={confirmModal.type === "sold" ? "Yes, Mark Sold" : "Yes, Delete"}
+        confirmText={confirmModal.type === "sold" ? "Mark as sold" : "Delete listing"}
         cancelText="Cancel"
         isDanger={confirmModal.type === "delete"}
       />

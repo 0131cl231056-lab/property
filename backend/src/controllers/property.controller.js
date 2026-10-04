@@ -78,10 +78,14 @@ export const createProperty = async (req, res) => {
         });
     }
 };
-
 export const getAllProperties = async (req, res) => {
-
     try {
+
+        console.log("DB:", propertyModel.db.name);
+        console.log("Collection:", propertyModel.collection.name);
+
+        const total = await propertyModel.countDocuments();
+        console.log("Total properties:", total);
 
         const properties = await propertyModel
             .find({
@@ -90,6 +94,8 @@ export const getAllProperties = async (req, res) => {
             })
             .populate("createdBy", "fullname");
 
+        console.log("Approved + Available:", properties.length);
+
         return res.status(200).json({
             success: true,
             properties
@@ -97,13 +103,40 @@ export const getAllProperties = async (req, res) => {
 
     } catch (err) {
 
+        console.log(err);
+
         return res.status(500).json({
             success: false,
             message: err.message
         });
     }
-
 };
+
+// export const getAllProperties = async (req, res) => {
+
+//     try {
+
+//         const properties = await propertyModel
+//             .find({
+//                 approvalStatus: "Approved",
+//                 status: "Available"
+//             })
+//             .populate("createdBy", "fullname");
+
+//         return res.status(200).json({
+//             success: true,
+//             properties
+//         });
+
+//     } catch (err) {
+
+//         return res.status(500).json({
+//             success: false,
+//             message: err.message
+//         });
+//     }
+
+// };
 
 export const getPropertyById = async (req, res) => {
 

@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { Outlet } from "react-router-dom";
+import { useSelector } from "react-redux";
 import {
   Home,
-  Search,
   Bell,
   Menu,
   X,
@@ -12,323 +11,319 @@ import {
   LayoutDashboard,
   Building2,
   ClipboardList,
-  MessageSquare,
 } from "lucide-react";
 import useAdminStore from "../state/adminSlice";
+import { useAuth } from "../../auth/hook/useAuth";
 
-// Navigation Items
 const NAV_ITEMS = [
+  { label: "Home", path: "/", icon: ClipboardList },
   { label: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
   { label: "Properties", path: "/admin/properties", icon: Building2 },
-  { label: "Pending Requests", path: "/admin/pending", icon: ClipboardList },
+  { label: "Pending requests", path: "/admin/pending", icon: ClipboardList, badge: true },
 ];
+
+const formatDate = (value) =>
+  value
+    ? new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+    : "";
 
 export default function AdminLayout({ children }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { pendingProperties, inquiries } = useAdminStore();
+  const { pendingProperties = [], inquiries = [] } = useAdminStore();
+  const user = useSelector((state) => state.auth.user);
+  const { handleLogout: logoutUser } = useAuth();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [searchVal, setSearchVal] = useState("");
 
   const notifRef = useRef(null);
   const profileRef = useRef(null);
 
-  // Close dropdowns on outside click
+  const pendingCount = pendingProperties.length;
+  const adminName = user?.fullname || "Admin";
+  const adminEmail = user?.email || "";
+
+  // Close dropdowns on outside click or Escape
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (notifRef.current && !notifRef.current.contains(event.target)) {
+    function onClick(e) {
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
+      if (profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false);
+    }
+    function onKey(e) {
+      if (e.key === "Escape") {
         setNotifOpen(false);
-      }
-      if (profileRef.current && !profileRef.current.contains(event.target)) {
         setProfileOpen(false);
       }
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
   }, []);
 
-  // Close mobile menu on page transition
+  // Close menus on page change
   useEffect(() => {
     setMobileMenuOpen(false);
+    setNotifOpen(false);
+    setProfileOpen(false);
   }, [pathname]);
 
-  const handleLogout = () => {
-    // Perform any logout cleanup here if needed
-    navigate("/login");
+  const handleLogout = async () => {
+    await logoutUser(); // clears the cookie and the Redux user
+    navigate("/login", { replace: true });
   };
 
+  const desktopLink = ({ isActive }) =>
+    `relative flex flex-1 items-center justify-center gap-2 rounded-lg px-3.5 py-2.5 text-sm font-semibold transition-colors ${
+      isActive
+        ? "bg-gray-900 text-white"
+        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+    }`;
+
+  const mobileLink = ({ isActive }) =>
+    `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-colors ${
+      isActive
+        ? "bg-gray-900 text-white"
+        : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+    }`;
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans" style={{ fontFamily: "'Inter', sans-serif" }}>
-      {/* ─── Sticky Header ─── */}
-      <header className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl">
-          <div className="flex items-center justify-end h-18 gap-60">
-            
-            {/* Left: Logo & Brand */}
-            <div className="flex items-center gap-3">
-              {/* Mobile hamburger menu button */}
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 rounded-xl text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors focus:outline-none"
-              >
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
-              
-              <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/admin/dashboard")}>
-                <div className="w-9 h-9 bg-gray-900 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Home className="w-5 h-5 text-white" />
-                </div>
-                <div className="hidden sm:block">
-                  <p className="font-bold text-gray-900 text-base leading-none tracking-tight">
-                    360Views
-                  </p>
-                  <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest leading-none">
-                    Admin Panel
-                  </span>
-                </div>
-              </div>
-            </div>
+    <div
+      className="flex min-h-screen flex-col bg-stone-50"
+      style={{ fontFamily: "'Inter', sans-serif" }}
+    >
+      {/* ─── Header ─── */}
+      <header className="sticky top-0 z-30 border-b border-stone-200 bg-white">
+        <div className="flex h-16 w-full items-center justify-between gap-4 px-3 sm:px-4 lg:px-5">
+          {/* Left: menu button + brand */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMobileMenuOpen((v) => !v)}
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileMenuOpen}
+              className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 md:hidden"
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
 
-            {/* Center: Search Bar (Desktop) */}
-            <div className="hidden md:flex flex-1 max-w-md relative items-center">
-              {/* <Search className="absolute left-3.5 w-4.5 h-4.5 text-gray-400 pointer-events-none" /> */}
-              <input
-                type="text"
-                placeholder="Search properties, sellers, buyers..."
-                value={searchVal}
-                onChange={(e) => setSearchVal(e.target.value)}
-                className="w-full pl-10 pr-10 py-6 text-md bg-gray-50 border border-gray-200 rounded-sm
-                  text-black-800 placeholder-gray-400 focus:bg-white
-                  focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200"
-              />
-            </div>
-
-            {/* Right: Notifications & Profile */}
-            <div className="flex items-center gap-2.5">
-              
-              {/* Notifications Dropdown */}
-              <div className="relative" ref={notifRef}>
-                <button
-                  onClick={() => navigate("/admin/pending")}
-                  className="relative p-2.5 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+            <button
+              onClick={() => navigate("/admin/dashboard")}
+              className="flex items-center gap-2.5 rounded-lg p-1 text-left"
+              aria-label="Go to dashboard"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-900">
+                <Home className="h-5 w-5 text-white" />
+              </span>
+              <span className="hidden leading-tight sm:block">
+                <span
+                  className="block text-base font-extrabold tracking-tight text-gray-900"
+                  style={{ fontFamily: "'Manrope', sans-serif" }}
                 >
-                  <Bell className="w-5 h-5" strokeWidth={1.8} />
-                  {pendingProperties.length > 0 && (
-                    <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-[10px] font-bold text-white rounded-full flex items-center justify-center ring-2 ring-white">
-                      {pendingProperties.length}
+                  360Views
+                </span>
+                <span className="block text-xs text-gray-500">Admin panel</span>
+              </span>
+            </button>
+          </div>
+
+          {/* Center: navigation (desktop), fills the space between logo and profile */}
+          <nav className="mx-4 hidden flex-1 items-center gap-2 md:flex" aria-label="Admin">
+            {NAV_ITEMS.map((item) => (
+              <NavLink key={item.path} to={item.path} className={desktopLink}>
+                <item.icon className="h-4 w-4 shrink-0" strokeWidth={2} />
+                {item.label}
+                {item.badge && pendingCount > 0 && (
+                  <span className="ml-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
+                    {pendingCount}
+                  </span>
+                )}
+              </NavLink>
+            ))}
+          </nav>
+
+          {/* Right: notifications and profile */}
+          <div className="flex items-center gap-2">
+            {/* Notifications */}
+            <div className="relative" ref={notifRef}>
+              <button
+                onClick={() => {
+                  setNotifOpen((v) => !v);
+                  setProfileOpen(false);
+                }}
+                aria-label="Notifications"
+                aria-expanded={notifOpen}
+                className="relative rounded-lg p-2.5 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+              >
+                <Bell className="h-5 w-5" strokeWidth={1.8} />
+                {pendingCount > 0 && (
+                  <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+                    {pendingCount}
+                  </span>
+                )}
+              </button>
+
+              {notifOpen && (
+                <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl">
+                  <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3">
+                    <p className="text-sm font-semibold text-gray-900">Notifications</p>
+                    <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                      {pendingCount} pending
+                    </span>
+                  </div>
+
+                  <div className="max-h-72 divide-y divide-stone-100 overflow-y-auto">
+                    {pendingCount === 0 && inquiries.length === 0 ? (
+                      <p className="px-4 py-10 text-center text-sm text-gray-500">
+                        You're all caught up.
+                      </p>
+                    ) : (
+                      <>
+                        {pendingProperties.slice(0, 3).map((p) => (
+                          <button
+                            key={p._id}
+                            onClick={() => navigate("/admin/pending")}
+                            className="flex w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-stone-50"
+                          >
+                            <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-gray-900" />
+                            <span className="min-w-0">
+                              <span className="block text-xs text-gray-500">
+                                New listing to review
+                              </span>
+                              <span className="mt-0.5 block truncate text-sm font-semibold text-gray-900">
+                                {p.title}
+                              </span>
+                              <span className="mt-0.5 block text-xs text-gray-400">
+                                {formatDate(p.createdAt || p.date)}
+                              </span>
+                            </span>
+                          </button>
+                        ))}
+                        {inquiries.slice(0, 2).map((inq) => (
+                          <button
+                            key={inq._id}
+                            onClick={() => navigate("/admin/purchase-requests")}
+                            className="flex w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-stone-50"
+                          >
+                            <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+                            <span className="min-w-0">
+                              <span className="block text-xs text-gray-500">
+                                New purchase request
+                              </span>
+                              <span className="mt-0.5 block truncate text-sm font-semibold text-gray-900">
+                                {inq.buyer}
+                              </span>
+                              <span className="mt-0.5 block text-xs text-gray-400">
+                                {formatDate(inq.createdAt || inq.date)}
+                              </span>
+                            </span>
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+
+                  <div className="border-t border-stone-100 bg-stone-50 px-4 py-2.5 text-center">
+                    <button
+                      onClick={() => navigate("/admin/pending")}
+                      className="text-sm font-semibold text-gray-700 transition-colors hover:text-gray-950"
+                    >
+                      View all pending requests
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mx-1 hidden h-6 w-px bg-stone-200 sm:block" />
+
+            {/* Profile */}
+            <div className="relative" ref={profileRef}>
+              <button
+                onClick={() => {
+                  setProfileOpen((v) => !v);
+                  setNotifOpen(false);
+                }}
+                aria-expanded={profileOpen}
+                className="flex items-center gap-2.5 rounded-lg p-1.5 transition-colors hover:bg-gray-100"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-900 text-sm font-bold text-white">
+                  {adminName.charAt(0).toUpperCase()}
+                </span>
+                <span className="hidden text-left leading-tight lg:block">
+                  <span className="block max-w-32 truncate text-sm font-semibold text-gray-900">
+                    {adminName}
+                  </span>
+                  <span className="block max-w-32 truncate text-xs text-gray-500">
+                    {adminEmail}
+                  </span>
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 text-gray-400 transition-transform ${
+                    profileOpen ? "rotate-180" : ""
+                  }`}
+                  strokeWidth={1.8}
+                />
+              </button>
+
+              {profileOpen && (
+                <div className="absolute right-0 z-50 mt-2 w-60 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl">
+                  <div className="border-b border-stone-100 px-4 py-3">
+                    <p className="truncate text-sm font-semibold text-gray-900">{adminName}</p>
+                    <p className="truncate text-xs text-gray-500">{adminEmail}</p>
+                  </div>
+                  <div className="p-1.5">
+                    <button
+                      onClick={handleLogout}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Log out
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile menu */}
+        {mobileMenuOpen && (
+          <div className="space-y-4 border-t border-stone-200 bg-white px-4 py-4 md:hidden">
+            <nav className="space-y-1" aria-label="Admin mobile">
+              {NAV_ITEMS.map((item) => (
+                <NavLink key={item.path} to={item.path} className={mobileLink}>
+                  <item.icon className="h-5 w-5" />
+                  <span className="flex-1">{item.label}</span>
+                  {item.badge && pendingCount > 0 && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
+                      {pendingCount}
                     </span>
                   )}
-                </button>
-
-                {notifOpen && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                    <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                      <p className="text-sm font-semibold text-gray-900">Notifications</p>
-                      <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
-                        {pendingProperties.length} Pending
-                      </span>
-                    </div>
-                    <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
-                      {pendingProperties.length === 0 && inquiries.length === 0 ? (
-                        <div className="px-4 py-8 text-center text-xs text-gray-400">
-                          No new notifications
-                        </div>
-                      ) : (
-                        <>
-                          {pendingProperties.slice(0, 3).map((p) => (
-                            <div
-                              key={p._id}
-                              onClick={() => {
-                                setNotifOpen(false);
-                                navigate("/admin/pending");
-                              }}
-                              className="px-4 py-3 flex gap-3 hover:bg-gray-50 transition-colors cursor-pointer"
-                            >
-                              <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
-                              <div className="min-w-0">
-                                <p className="text-xs text-gray-700 font-medium">
-                                  New submission pending review:
-                                </p>
-                                <p className="text-xs text-gray-900 truncate font-semibold mt-0.5">{p.title}</p>
-                                <p className="text-[10px] text-gray-400 mt-0.5">{p.date}</p>
-                              </div>
-                            </div>
-                          ))}
-                          {inquiries.slice(0, 2).map((inq) => (
-                            <div
-                              key={inq._id}
-                              onClick={() => {
-                                setNotifOpen(false);
-                                navigate("/admin/purchase-requests");
-                              }}
-                              className="px-4 py-3 flex gap-3 hover:bg-gray-50 transition-colors cursor-pointer"
-                            >
-                              <div className="w-2 h-2 rounded-full bg-amber-500 mt-2 flex-shrink-0" />
-                              <div className="min-w-0">
-                                <p className="text-xs text-gray-700 font-medium">
-                                  New purchase request from:
-                                </p>
-                                <p className="text-xs text-gray-900 truncate font-semibold mt-0.5">{inq.buyer}</p>
-                                <p className="text-[10px] text-gray-400 mt-0.5">{inq.date}</p>
-                              </div>
-                            </div>
-                          ))}
-                        </>
-                      )}
-                    </div>
-                    <div className="px-4 py-2 border-t border-gray-100 bg-gray-50/50 text-center">
-                      <button
-                        onClick={() => {
-                          setNotifOpen(false);
-                          navigate("/admin/pending");
-                        }}
-                        className="text-[11px] font-bold text-gray-700 hover:text-gray-900"
-                      >
-                        View all pending requests
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Divider */}
-              <div className="w-px h-6 bg-gray-200" />
-
-              {/* Profile Dropdown */}
-              <div className="relative" ref={profileRef}>
-                <div
-                  onClick={() => setProfileOpen(!profileOpen)}
-                  className="flex items-center gap-2 cursor-pointer group p-1.5 rounded-xl hover:bg-gray-50 transition-colors"
-                >
-                  <div className="w-8.5 h-8.5 rounded-full bg-gray-900 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                    A
-                  </div>
-                  <div className="hidden px-10 md:block text-left">
-                    <p className="text-xs font-semibold text-gray-900 ">Admin User</p>
-                    <p className="text-[10px] text-gray-400">admin@360views.in</p>
-                  </div>
-                  <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" strokeWidth={1.8} />
-                </div>
-
-                {profileOpen && (
-                  <div className="absolute right-0 mt-2 w-60 bg-white border border-gray-200 rounded-xs shadow-lg overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                    <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/30">
-                      <p className="text-xs font-semibold text-gray-900">Admin User</p>
-                      <p className="text-[10px] text-gray-400 truncate">admin@360views.in</p>
-                    </div>
-                    <div className="p-1">
-                      <button
-                        onClick={handleLogout}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        Logout
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-            </div>
-
+                </NavLink>
+              ))}
+              <button
+                onClick={handleLogout}
+                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50"
+              >
+                <LogOut className="h-5 w-5" />
+                Log out
+              </button>
+            </nav>
           </div>
-        </div>
+        )}
       </header>
 
-      {/* ─── Horizontal Navigation Bar (Desktop) ─── */}
-      <nav className="hidden md:block bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-center gap-50 h-15">
-            {NAV_ITEMS.map((item) => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                className={({ isActive }) =>
-                  `flex items-center gap-2 px-4 py-2 rounded-xl text-md font-bold uppercase tracking-wider transition-all duration-200 ${
-                    isActive
-                      ? "bg-gray-100 text-gray-900"
-                      : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
-                  }`
-                }
-              >
-                <item.icon className="w-4 h-4 flex-shrink-0" strokeWidth={2} />
-                {item.label}
-              </NavLink>
-            ))}
-            
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-md font-bold uppercase tracking-wider text-gray-400 hover:bg-red-50 hover:text-red-600 transition-all duration-200"
-            >
-              <LogOut className="w-4 h-4 flex-shrink-0" strokeWidth={2} />
-              Logout
-            </button>
-          </div>
-        </div>
-      </nav>
-
-      {/* ─── Mobile Collapse Drawer ─── */}
-      {mobileMenuOpen && (
-        <div className="md:hidden bg-white border-b border-gray-200 px-4 py-4 space-y-4 animate-in slide-in-from-top duration-200 z-20 relative">
-          {/* Mobile search bar */}
-          <div className="relative flex items-center">
-            <Search className="absolute left-3 w-4 h-4 text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search properties, sellers..."
-              value={searchVal}
-              onChange={(e) => setSearchVal(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none"
-            />
-          </div>
-
-          {/* Navigation Links */}
-          <div className="space-y-1">
-            {NAV_ITEMS.map((item) => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                    isActive
-                      ? "bg-gray-100 text-gray-900"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                  }`
-                }
-              >
-                <item.icon className="w-4.5 h-4.5 text-gray-400" />
-                {item.label}
-              </NavLink>
-            ))}
-            
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition-all"
-            >
-              <LogOut className="w-4.5 h-4.5" />
-              Logout
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Main Content Container ─── */}
-      <main className="flex-1 w-full max-w-[1700px] mx-auto px-6 lg:px-10 py-8">
-        {children}
-      </main>
+      {/* ─── Content ─── */}
+      <main className="w-full flex-1 px-3 py-6 sm:px-4 lg:px-5">{children}</main>
 
       {/* ─── Footer ─── */}
-      <footer className="bg-white border-t border-gray-200 py-5 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-400">
-          <p>© 2026 360Views Admin Dashboard. All rights reserved.</p>
-          <div className="flex gap-4">
-            <span className="cursor-pointer hover:text-gray-600">Privacy Policy</span>
-            <span className="cursor-pointer hover:text-gray-600">Terms of Service</span>
-            <span>v1.2 (Active State Enabled)</span>
-          </div>
+      <footer className="mt-auto border-t border-stone-200 bg-white">
+        <div className="w-full px-3 py-5 text-sm text-gray-500 sm:px-4 lg:px-5">
+          © 2026 360Views. All rights reserved.
         </div>
       </footer>
     </div>

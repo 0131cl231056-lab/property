@@ -4,14 +4,10 @@ import { useSelector } from "react-redux";
 const ProtectedRoute = ({ children }) => {
     const { user, loading } = useSelector((state) => state.auth);
 
-console.log({ loading, user });
+    if (loading) return <div>Loading...</div>;
+    if (!user) return <Navigate to="/login" replace />;
 
-// if (loading) return <Spinner />;
-
-if (!user) return <Navigate to="/login" />;
-return children;
-
-
+    return children;
 };
 
 export default ProtectedRoute;

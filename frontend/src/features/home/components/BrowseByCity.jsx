@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import useProperty from "../../property/hook/useProperty";
+import { formatPrice } from "../../../utils/formatPrice";
 
 const BrowseByCity = () => {
     const { handleGetLocations } = useProperty();
@@ -20,8 +21,8 @@ const BrowseByCity = () => {
     }, []);
 
     return (
-        <section className="py-28 ">
-            <div className="w-full px-8">
+        <section className="py-8 ">
+            <div className="w-full max-w-7xl mx-auto px-6">
                 <div className="text-center mb-12">
 
                     <h2 className="text-4xl font-bold text-stone-900 mt-2">
@@ -60,9 +61,9 @@ const BrowseByCity = () => {
 
                                 {city.startPrice && (
                                     <p className="text-sm opacity-90 mt-1">
-                                        Starting from ₹
-                                        {Number(city.startPrice).toLocaleString()}
-                                    </p>
+    Starting from{" "}
+    {formatPrice(city.startPrice)}
+</p>
                                 )}
                             </div>
                         </Link>

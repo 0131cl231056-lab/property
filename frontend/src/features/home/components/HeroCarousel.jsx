@@ -1,5 +1,6 @@
-import { useState, useEffect} from "react";
+import { useState, useEffect } from "react"; 
 import useProperty from "../../property/hook/useProperty";
+import { formatPrice } from "../../../utils/formatPrice";
 
 const ChevronLeft = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -122,9 +123,9 @@ const goTo = (idx) => setActive((idx + total) % total);
 </h1>
         <div className="lp-hero__summary">
 
-    <div className="lp-price">
-        ₹ {slide.price?.toLocaleString("en-IN")}
-    </div>
+    <div className="lp-price"> 
+    {formatPrice(slide.price)}
+</div>
 
     <div className="lp-location">
         📍 {slide.city}

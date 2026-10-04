@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { X, ClipboardList, Bed, Bath, Maximize2, MapPin, Tag, Mail, Phone, Calendar, CheckSquare, Trash } from "lucide-react";
+import { X, ClipboardList, Mail, Phone, Calendar, MapPin } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
 import SearchBar from "../components/SearchBar";
 import FilterDropdown from "../components/FilterDropdown";
@@ -8,6 +8,7 @@ import ConfirmationModal from "../components/ConfirmationModal";
 import EmptyState from "../components/EmptyState";
 import StatusBadge from "../components/StatusBadge";
 import useAdmin from "../hook/useAdmin";
+import { formatPrice } from "../../../utils/formatPrice";
 
 const CATEGORIES = [
   "Apartment",
@@ -19,359 +20,394 @@ const CATEGORIES = [
   "Office",
   "Shop",
   "Warehouse",
-  "Agricultural Land"
+  "Agricultural Land",
 ];
 const CITIES = ["Bhopal", "Indore", "Delhi", "Mumbai", "Pune", "Bangalore"];
+const AREA_UNITS = { sqft: "sq ft", acre: "acres", acres: "acres" };
+const CLOSED_MODAL = { isOpen: false, type: "", propertyId: null };
 
 export default function PendingRequests() {
   const {
-    pendingProperties,
+    pendingProperties = [],
     handleGetPendingProperties,
     handleApproveProperty,
     handleRejectProperty,
   } = useAdmin();
 
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [city, setCity] = useState("");
 
-  // Drawer details state
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-
-  // Confirmation Modals State
-  const [confirmModal, setConfirmModal] = useState({
-    isOpen: false,
-    type: "", // "approve" or "reject"
-    propertyId: null,
-  });
-useEffect(() => {
-  if (selectedProperty) {
-    console.log(selectedProperty);
-    console.log(selectedProperty.propertyImages);
-  }
-}, [selectedProperty]);
-  useEffect(() => {
-  console.log(pendingProperties.propertyImages);
-}, [pendingProperties]);
+  const [confirmModal, setConfirmModal] = useState(CLOSED_MODAL);
 
   useEffect(() => {
     async function loadPending() {
       setLoading(true);
-      await handleGetPendingProperties();
-      setLoading(false);
+      try {
+        await handleGetPendingProperties();
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
     }
     loadPending();
   }, []);
 
-  // Filter pending requests
-  const filteredPending = useMemo(() => {
-    return pendingProperties.filter((p) => {
-      const q = search.toLowerCase();
-      const matchesSearch =
-  !search ||
-  p.title?.toLowerCase().includes(q) ||
-  p.seller?.fullname?.toLowerCase().includes(q);
-      const matchesCategory = !category || p.category === category;
-      const matchesCity = !city || p.city === city;
+  const hasFilters = Boolean(search || category || city);
 
-      return matchesSearch && matchesCategory && matchesCity;
+  const clearFilters = () => {
+    setSearch("");
+    setCategory("");
+    setCity("");
+  };
+
+  const filteredPending = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return pendingProperties.filter((p) => {
+      const matchesSearch =
+        !q ||
+        p.title?.toLowerCase().includes(q) ||
+        p.seller?.fullname?.toLowerCase().includes(q);
+      return (
+        matchesSearch &&
+        (!category || p.category === category) &&
+        (!city || p.city === city)
+      );
     });
   }, [pendingProperties, search, category, city]);
 
+  // Mount the drawer first, then slide it in on the next frame
   const handleOpenDrawer = (property) => {
     setSelectedProperty(property);
-    setIsDrawerOpen(true);
+    requestAnimationFrame(() => setIsDrawerOpen(true));
   };
 
   const handleCloseDrawer = () => {
     setIsDrawerOpen(false);
-    setTimeout(() => {
-      setSelectedProperty(null);
-    }, 300); // Allow slide-out animation to complete
+    setTimeout(() => setSelectedProperty(null), 300);
   };
 
-  const triggerApprove = (id, e) => {
-    if (e) e.stopPropagation();
-    setConfirmModal({
-      isOpen: true,
-      type: "approve",
-      propertyId: id,
-    });
-  };
+  // Close the drawer with Escape (unless the confirm modal is open)
+  useEffect(() => {
+    if (!selectedProperty || confirmModal.isOpen) return;
+    const onKey = (e) => e.key === "Escape" && handleCloseDrawer();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedProperty, confirmModal.isOpen]);
 
-  const triggerReject = (id, e) => {
-    if (e) e.stopPropagation();
-    setConfirmModal({
-      isOpen: true,
-      type: "reject",
-      propertyId: id,
-    });
-  };
+  const openConfirm = (type) => (id) =>
+    setConfirmModal({ isOpen: true, type, propertyId: id });
 
   const handleConfirmAction = async () => {
     const { type, propertyId } = confirmModal;
     if (!propertyId) return;
 
-    setLoading(true);
-    if (type === "approve") {
-      await handleApproveProperty(propertyId);
+    setActionLoading(true);
+    try {
+      if (type === "approve") await handleApproveProperty(propertyId);
+      else if (type === "reject") await handleRejectProperty(propertyId);
       await handleGetPendingProperties();
-    } else if (type === "reject") {
-      await handleRejectProperty(propertyId);
-      await handleGetPendingProperties();
+
+      if (selectedProperty?._id === propertyId) handleCloseDrawer();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setActionLoading(false);
+      setConfirmModal(CLOSED_MODAL);
     }
-    
-    // If the active property inside the drawer was approved/rejected, close it
-    if (selectedProperty && selectedProperty._id === propertyId) {
-      handleCloseDrawer();
-    }
-    
-    setLoading(false);
-    setConfirmModal({ isOpen: false, type: "", propertyId: null });
   };
+
+  const submittedOn = selectedProperty?.createdAt
+    ? new Date(selectedProperty.createdAt).toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : null;
 
   return (
     <AdminLayout>
-      <div className="space-y-6 text-left animate-in fade-in duration-300 relative overflow-hidden">
-        
-        {/* Header Title */}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight" style={{ fontFamily: "'Manrope', sans-serif" }}>
-            Pending Approval Requests
+      <div className="relative mx-auto w-full max-w-8xl space-y-8 overflow-hidden px-7 py-6 text-left">
+        {/* ─── Header ─── */}
+        <section>
+          <h1
+            className="text-3xl font-extrabold tracking-tight text-gray-900"
+            style={{ fontFamily: "'Manrope', sans-serif" }}
+          >
+            Pending requests
           </h1>
-          <br />
-          <p className="text-sm text-gray-500 mt-1">
-            Review, inspect, approve, or reject new property submissions from sellers.
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-gray-500">
+            Check each new listing from sellers, then approve it to publish it or
+            reject it to remove it from the queue.
           </p>
-          <br />
-        </div>
+        </section>
 
-        {/* Filters Row */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col sm:flex-row gap-3">
-          {/* <SearchBar
-            value={search}
-            onChange={setSearch}
-            placeholder="Search properties or sellers..."
-            className="flex-1"
-          /> */}
-          <FilterDropdown
-            label="All Categories"
-            value={category}
-            onChange={setCategory}
-            options={CATEGORIES}
-            className="sm:w-44"
-          />
-          <FilterDropdown
-            label="All Cities"
-            value={city}
-            onChange={setCity}
-            options={CITIES}
-            className="sm:w-40"
-          />
-        </div>
-            <br />
-        {/* Count Indicator */}
-        {!loading && (
-          <p className="text-sm font-semibold text-gray-500 px-1 leading-none">
-            Showing <span className="text-gray-900 font-bold">{filteredPending.length}</span> pending approvals
-          </p>
-        )}
-        <br />
-        {/* Grid Cards Container */}
+        {/* ─── Filters ─── */}
+        <section className="space-y-4 rounded-2xl border border-stone-200 bg-white p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <SearchBar
+              value={search}
+              onChange={setSearch}
+              placeholder="Search by property or seller"
+              className="flex-1"
+            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <FilterDropdown
+                label="All categories"
+                value={category}
+                onChange={setCategory}
+                options={CATEGORIES}
+                className="w-full sm:w-44"
+              />
+              <FilterDropdown
+                label="All cities"
+                value={city}
+                onChange={setCity}
+                options={CITIES}
+                className="w-full sm:w-40"
+              />
+            </div>
+          </div>
+
+          {!loading && (
+            <div className="flex items-center justify-between border-t border-stone-100 pt-3 text-sm">
+              <p className="text-gray-500">
+                Showing{" "}
+                <span className="font-semibold text-gray-900">
+                  {filteredPending.length}
+                </span>{" "}
+                pending {filteredPending.length === 1 ? "request" : "requests"}
+              </p>
+              {hasFilters && (
+                <button
+                  onClick={clearFilters}
+                  className="font-semibold text-gray-700 underline-offset-4 transition hover:text-gray-950 hover:underline"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* ─── Cards ─── */}
         {loading ? (
-          <div className="flex justify-center items-center py-24">
-            <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin" />
+          <div className="flex items-center justify-center py-24">
+            <div
+              className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-gray-800"
+              role="status"
+              aria-label="Loading requests"
+            />
           </div>
         ) : filteredPending.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-xs">
+          <div className="rounded-2xl border border-stone-200 bg-white">
             <EmptyState
               icon={ClipboardList}
-              title="All caught up!"
-              description="No properties are currently awaiting administrative review."
+              title={hasFilters ? "No matching requests" : "All caught up"}
+              description={
+                hasFilters
+                  ? "Try a different search or remove some filters."
+                  : "No properties are waiting for approval right now."
+              }
+              action={hasFilters ? { label: "Clear filters", onClick: clearFilters } : undefined}
             />
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            
+          <div
+            className={`grid grid-cols-1 gap-8 transition sm:grid-cols-2 lg:grid-cols-3 ${
+              actionLoading ? "pointer-events-none opacity-60" : ""
+            }`}
+          >
             {filteredPending.map((p) => (
-              
               <PropertyCard
-              
                 key={p._id}
                 property={p}
-                onApprove={(id) => triggerApprove(id)}
-                onReject={(id) => triggerReject(id)}
+                onApprove={openConfirm("approve")}
+                onReject={openConfirm("reject")}
                 onView={handleOpenDrawer}
                 showGallery={true}
               />
             ))}
           </div>
         )}
+      </div>
 
-        {/* ─── Right-Side slide-over Drawer ─── */}
-        {selectedProperty && (
-          <>
-            {/* Backdrop */}
-            <div
-              className={`fixed inset-0 bg-black/35 backdrop-blur-xs z-40 transition-opacity duration-300 ${
-                isDrawerOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-              }`}
-              onClick={handleCloseDrawer}
-            />
+      {/* ─── Details drawer ─── */}
+      {selectedProperty && (
+        <>
+          <div
+            className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${
+              isDrawerOpen ? "opacity-100" : "pointer-events-none opacity-0"
+            }`}
+            onClick={handleCloseDrawer}
+          />
 
-            {/* Slide-over Panel */}
-            <div
-              className={`fixed top-0 right-0 h-full w-full max-w-md bg-white border-l border-gray-200 shadow-2xl z-50 flex flex-col transform transition-transform duration-350 ease-in-out ${
-                isDrawerOpen ? "translate-x-0" : "translate-x-full"
-              }`}
-            >
-              {/* Drawer Header */}
-              <div className="px-6 py-4.5 border-b border-gray-150 flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold text-gray-900 text-sm" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                    Submission Details
-                  </h3>
-                  <p className="text-[10px] text-gray-400 font-semibold mt-0.5">ID: {selectedProperty._id}</p>
-                </div>
-                <button
-                  onClick={handleCloseDrawer}
-                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="Submission details"
+            className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md transform flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out ${
+              isDrawerOpen ? "translate-x-0" : "translate-x-full"
+            }`}
+          >
+            {/* Image with close button */}
+            <div className="relative h-60 shrink-0 bg-gray-100">
+              <img
+                src={
+                  selectedProperty.propertyImages?.[0] ||
+                  "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800&q=80"
+                }
+                alt={selectedProperty.title}
+                className="h-full w-full object-cover"
+              />
+              <div className="absolute left-4 top-4">
+                <StatusBadge status={selectedProperty.status} />
+              </div>
+              <button
+                onClick={handleCloseDrawer}
+                aria-label="Close"
+                className="absolute right-4 top-4 rounded-full bg-white/90 p-2 text-gray-700 shadow transition hover:bg-white hover:text-gray-950"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Scrollable body */}
+            <div className="flex-1 space-y-6 overflow-y-auto p-6">
+              <div className="space-y-2">
+                <h2
+                  className="text-xl font-bold leading-snug text-gray-900"
+                  style={{ fontFamily: "'Manrope', sans-serif" }}
                 >
-                  <X className="w-5 h-5" />
-                </button>
+                  {selectedProperty.title}
+                </h2>
+                <p className="flex items-center gap-1.5 text-sm text-gray-500">
+                  <MapPin className="h-4 w-4" />
+                  {[selectedProperty.city, selectedProperty.state]
+                    .filter(Boolean)
+                    .join(", ")}
+                </p>
+                <p className="text-2xl font-extrabold text-gray-950">
+                  {formatPrice(selectedProperty.price)}
+                </p>
               </div>
 
-              {/* Drawer Body Scroll */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                
-                {/* Images Container */}
-                <div className="h-52 rounded-xl overflow-hidden bg-gray-50 border border-gray-150 relative">
-
-                  <img
-                    src={selectedProperty.propertyImages?.[0] || "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=600&q=80"}
-                    alt={selectedProperty.title}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute top-3 left-3">
-                    <StatusBadge status={selectedProperty.status} />
-                  </div>
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-5 rounded-2xl border border-stone-200 bg-stone-50 p-5 text-sm">
+                <div>
+                  <dt className="text-xs text-gray-500">Category</dt>
+                  <dd className="mt-1 font-semibold text-gray-900">
+                    {selectedProperty.category}
+                  </dd>
                 </div>
-
-                {/* Title & Price */}
-                <div className="space-y-1">
-                  <h2 className="text-lg font-bold text-gray-900 leading-snug" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                    {selectedProperty.title}
-                  </h2>
-                  <p className="text-xl font-extrabold text-gray-950">{selectedProperty.price?.toLocaleString("en-IN")}</p>
+                <div>
+                  <dt className="text-xs text-gray-500">Area</dt>
+                  <dd className="mt-1 font-semibold text-gray-900">
+                    {selectedProperty.area}{" "}
+                    {AREA_UNITS[selectedProperty.areaUnit] || selectedProperty.areaUnit || ""}
+                  </dd>
                 </div>
-
-                {/* Specs Grid */}
-                <div className="grid grid-cols-2 gap-3.5 bg-gray-50 border border-gray-100 rounded-xl p-4 text-xs font-semibold text-gray-650">
-                  <div>
-                    <span className="text-gray-400 block font-normal text-[10px] uppercase tracking-wider mb-0.5">Category</span>
-                    <span className="text-gray-800 font-bold">{selectedProperty.category}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400 block font-normal text-[10px] uppercase tracking-wider mb-0.5">City Location</span>
-                    <span className="text-gray-800 font-bold">{selectedProperty.city}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400 block font-normal text-[10px] uppercase tracking-wider mb-0.5">Built Area</span>
-                    <span className="text-gray-800 font-bold">{selectedProperty.area} sqft</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400 block font-normal text-[10px] uppercase tracking-wider mb-0.5">Configurations</span>
-                    <span className="text-gray-800 font-bold">
-                      {selectedProperty.bedrooms} BHK, {selectedProperty.bathrooms} Bath
-                    </span>
-                  </div>
+                <div>
+                  <dt className="text-xs text-gray-500">Bedrooms</dt>
+                  <dd className="mt-1 font-semibold text-gray-900">
+                    {selectedProperty.bedrooms}
+                  </dd>
                 </div>
-
-                {/* Submission Date */}
-                <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50/50 border border-gray-100/50 rounded-xl px-4 py-2.5">
-                  <Calendar className="w-4 h-4 text-gray-400" />
-                  <span>Submitted on: <span className="font-bold text-gray-700">{new Date(selectedProperty.createdAt).toLocaleDateString()}</span></span>
+                <div>
+                  <dt className="text-xs text-gray-500">Bathrooms</dt>
+                  <dd className="mt-1 font-semibold text-gray-900">
+                    {selectedProperty.bathrooms}
+                  </dd>
                 </div>
+              </dl>
 
-                {/* Amenities List */}
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Amenities & Features</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(selectedProperty.amenities || []).map((amenity, i) => (
+              {submittedOn && (
+                <p className="flex items-center gap-2 text-sm text-gray-500">
+                  <Calendar className="h-4 w-4" />
+                  Submitted on{" "}
+                  <span className="font-semibold text-gray-800">{submittedOn}</span>
+                </p>
+              )}
+
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-gray-900">Amenities</p>
+                {selectedProperty.amenities?.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedProperty.amenities.map((amenity, i) => (
                       <span
                         key={i}
-                        className="bg-gray-100 text-gray-700 text-[10px] font-bold px-2.5 py-1.5 rounded-lg border border-gray-150"
+                        className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-medium text-gray-700"
                       >
                         {amenity}
                       </span>
                     ))}
                   </div>
-                </div>
+                ) : (
+                  <p className="text-sm text-gray-500">The seller didn't list any amenities.</p>
+                )}
+              </div>
 
-                {/* Seller Detail Card */}
-                <div className="border-t border-gray-150 pt-5 space-y-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Seller Details</p>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-700 text-sm border border-gray-200">
-                      {selectedProperty.seller?.fullname?.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-gray-900">{selectedProperty.seller?.fullname}</p>
-                      <div className="text-[10px] text-gray-400 space-y-0.5 mt-0.5">
-                        <p className="flex items-center gap-1.5 truncate">
-                          <Mail className="w-3.5 h-3.5 text-gray-400" />
-                          {selectedProperty.seller?.email}
-                        </p>
-                        <p className="flex items-center gap-1.5">
-                          <Phone className="w-3.5 h-3.5 text-gray-400" />
-                          {selectedProperty.seller?.contact}
-                        </p>
-                      </div>
-                    </div>
+              <div className="rounded-2xl border border-stone-200 p-5">
+                <p className="mb-4 text-sm font-semibold text-gray-900">Seller</p>
+                <div className="flex items-center gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-900 text-sm font-bold text-white">
+                    {selectedProperty.seller?.fullname?.charAt(0)?.toUpperCase() || "U"}
+                  </div>
+                  <div className="min-w-0 space-y-1 text-sm">
+                    <p className="font-semibold text-gray-900">
+                      {selectedProperty.seller?.fullname}
+                    </p>
+                    <p className="flex items-center gap-2 text-gray-500">
+                      <Mail className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{selectedProperty.seller?.email}</span>
+                    </p>
+                    <p className="flex items-center gap-2 text-gray-500">
+                      <Phone className="h-3.5 w-3.5 shrink-0" />
+                      {selectedProperty.seller?.contact}
+                    </p>
                   </div>
                 </div>
-
               </div>
-
-              {/* Drawer Actions Footer (Approve/Reject Sticky Panel) */}
-              <div className="px-6 py-4 bg-gray-50 border-t border-gray-150 flex items-center gap-3">
-                <button
-                  onClick={() => triggerReject(selectedProperty._id)}
-                  className="flex-1 py-2.5 text-xs font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-100 rounded-xl transition-all duration-200 active:scale-[0.98]"
-                >
-                  Reject Request
-                </button>
-                <button
-                  onClick={() => triggerApprove(selectedProperty._id)}
-                  className="flex-1 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow rounded-xl transition-all duration-200 active:scale-[0.98]"
-                >
-                  Approve Request
-                </button>
-              </div>
-
             </div>
-          </>
-        )}
 
-        {/* ─── Confirmation Modal ─── */}
-        <ConfirmationModal
-          isOpen={confirmModal.isOpen}
-          onClose={() => setConfirmModal({ isOpen: false, type: "", propertyId: null })}
-          onConfirm={handleConfirmAction}
-          title={confirmModal.type === "approve" ? "Approve Property Submission" : "Reject Property Submission"}
-          message={
-            confirmModal.type === "approve"
-              ? "Are you sure you want to approve this property? Once approved, it will be added to the live listings and become visible to platform buyers."
-              : "Are you sure you want to reject this property submission? This will remove the listing request from the pending validation queue."
-          }
-          confirmText={confirmModal.type === "approve" ? "Yes, Approve" : "Yes, Reject"}
-          cancelText="Cancel"
-          isDanger={confirmModal.type === "reject"}
-        />
+            {/* Sticky actions */}
+            <div className="flex items-center gap-3 border-t border-stone-200 bg-stone-50 px-6 py-4">
+              <button
+                onClick={() => openConfirm("reject")(selectedProperty._id)}
+                className="flex-1 rounded-xl border border-stone-300 bg-white py-3 text-sm font-semibold text-gray-700 transition hover:bg-stone-100"
+              >
+                Reject
+              </button>
+              <button
+                onClick={() => openConfirm("approve")(selectedProperty._id)}
+                className="flex-1 rounded-xl bg-gray-900 py-3 text-sm font-semibold text-white transition hover:bg-gray-800"
+              >
+                Approve
+              </button>
+            </div>
+          </aside>
+        </>
+      )}
 
-      </div>
+      {/* ─── Confirmation modal ─── */}
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(CLOSED_MODAL)}
+        onConfirm={handleConfirmAction}
+        title={confirmModal.type === "approve" ? "Approve this listing" : "Reject this listing"}
+        message={
+          confirmModal.type === "approve"
+            ? "The property will go live and buyers will be able to see it."
+            : "The listing will be removed from the pending queue."
+        }
+        confirmText={confirmModal.type === "approve" ? "Approve" : "Reject"}
+        cancelText="Cancel"
+        isDanger={confirmModal.type === "reject"}
+      />
     </AdminLayout>
   );
 }

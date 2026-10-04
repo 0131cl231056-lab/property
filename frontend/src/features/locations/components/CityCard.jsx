@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { formatPrice } from "../../../utils/formatPrice";
 
 const CityCard = ({ city }) => {
   return (
@@ -22,14 +23,14 @@ const CityCard = ({ city }) => {
         <div className="city-card__price-row">
           <span className="city-card__price-label">Starting from</span>
           <span className="city-card__price-value">
-              ₹{city.startPrice.toLocaleString("en-IN")}
+              {formatPrice(city.startPrice)}
           </span>
         </div>
         
         <div className="city-card__price-row" style={{ marginBottom: '24px' }}>
           <span className="city-card__price-label">Average</span>
           <span className="city-card__price-value">
-              ₹{city.avgPrice.toLocaleString("en-IN")}
+              {formatPrice(city.avgPrice)}
           </span>
         </div>
         

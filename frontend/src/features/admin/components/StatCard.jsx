@@ -10,25 +10,22 @@ const StatCard = ({
       group
       bg-white
       border border-stone-200
-      rounded-3xl
-      p-7
+      rounded-2xl
+      px-5 py-4
       transition-all duration-300
       hover:border-stone-300
-      hover:shadow-lg
-      hover:-translate-y-1
+      hover:shadow-md
     "
     style={{ animationDelay: `${delay}ms` }}
   >
-    <div className="flex items-start justify-between">
-
-      <div className="space-y-3">
-
-        <p className="text-[11px] uppercase tracking-[3px] text-stone-500 font-semibold">
+    <div className="flex items-center justify-between gap-4">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-stone-500">
           {title}
         </p>
 
         <h2
-          className="text-5xl font-bold text-stone-900 leading-none"
+          className="mt-1 text-3xl font-bold leading-none text-stone-900"
           style={{ fontFamily: "'Manrope', sans-serif" }}
         >
           {typeof value === "number"
@@ -37,41 +34,26 @@ const StatCard = ({
         </h2>
 
         {change && (
-          <p className="text-sm text-stone-500">
-            {change}
-          </p>
+          <p className="mt-1.5 text-xs text-stone-500">{change}</p>
         )}
-
       </div>
 
       <div
         className="
-          w-14
-          h-14
-          rounded-2xl
-          bg-stone-100
+          flex h-10 w-10 shrink-0 items-center justify-center
+          rounded-xl
           border border-stone-200
-          flex
-          items-center
-          justify-center
-          transition-all
-          duration-300
-          group-hover:bg-stone-900
+          bg-stone-100
+          transition-colors duration-300
           group-hover:border-stone-900
+          group-hover:bg-stone-900
         "
       >
         <Icon
-          className="
-            w-6
-            h-6
-            text-stone-600
-            group-hover:text-white
-            transition-colors
-          "
+          className="h-5 w-5 text-stone-600 transition-colors group-hover:text-white"
           strokeWidth={1.8}
         />
       </div>
-
     </div>
   </div>
 );

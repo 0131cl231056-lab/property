@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {formatPrice} from "../../../utils/formatPrice"
+import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../auth/hook/useAuth';
 
 // Icons
 const HeartIcon = ({ filled }) => (
@@ -35,11 +38,36 @@ const AreaIcon = () => (
     <path d="M3 9h18M9 21V9"/>
   </svg>
 );
+const AREA_UNITS = {
+  sqft: "sq ft",
+  acre: "acres",
+  acres: "acres",
+};
 
 const PropertyCard = ({ property }) => {
-  const [fav, setFav] = useState(false);
+  const navigate = useNavigate();
+const { user, favorites } = useSelector((state) => state.auth);
+const { handleAddFavorite, handleRemoveFavorite } = useAuth();
 
-  const { title, price, location, category, area, bedrooms, bathrooms, description, image } = property;
+const propertyId = property._id || property.id;
+const fav = favorites.some((f) => f._id === propertyId);
+
+const handleFavClick = async (e) => {
+  e.preventDefault();
+
+  if (!user) {
+    navigate('/login');
+    return;
+  }
+
+  if (fav) {
+    await handleRemoveFavorite(propertyId);
+  } else {
+    await handleAddFavorite(propertyId);
+  }
+};
+
+  const { title, price, location, category, area, areaUnit ,bedrooms, bathrooms, description, image } = property;
 
   return (
     <div className="lp-prop-card">
@@ -51,10 +79,10 @@ const PropertyCard = ({ property }) => {
           className="property-card__image"
         />
         <button
-          className={`lp-prop-card__fav${fav ? ' active' : ''}`}
-          onClick={(e) => { e.preventDefault(); setFav((v) => !v); }}
-          aria-label={fav ? 'Remove from favorites' : 'Add to favorites'}
-        >
+  className={`lp-prop-card__fav${fav ? ' active' : ''}`}
+  onClick={handleFavClick}
+  aria-label={fav ? 'Remove from favorites' : 'Add to favorites'}
+>
           <HeartIcon filled={fav} />
         </button>
         <span className="lp-prop-card__category">{category}</span>
@@ -70,8 +98,8 @@ const PropertyCard = ({ property }) => {
         </div>
         <div className="lp-prop-card__pills">
           <span className="lp-prop-pill">
-            <AreaIcon />{area}
-          </span>
+  <AreaIcon />{area} {AREA_UNITS[areaUnit] || areaUnit}
+</span>
           {bedrooms > 0 && (
             <span className="lp-prop-pill">
               <BedIcon />{bedrooms} Bed

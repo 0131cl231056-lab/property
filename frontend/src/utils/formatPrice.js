@@ -1,14 +1,13 @@
-
-export function formatPrice(price) {
+export const formatPrice = (price) => {
   if (!price) return "₹0";
 
   if (price >= 10000000) {
-    return `₹${(price / 10000000).toFixed(2)} Cr`;
+    return `₹${(price / 10000000).toFixed(2).replace(/\.00$/, "")} Cr`;
   }
 
   if (price >= 100000) {
-    return `₹${(price / 100000).toFixed(2)} Lakh`;
+    return `₹${(price / 100000).toFixed(2).replace(/\.00$/, "")} Lakh`;
   }
 
-  return `₹${new Intl.NumberFormat("en-IN").format(price)}`;
-}
+  return `₹${price.toLocaleString("en-IN")}`;
+};

@@ -84,25 +84,24 @@ export function useAuth() {
         }
     }
 
-    const handleGetMe = async () => {
+       const handleGetMe = async () => {
+    console.log("handleGetMe started");
     dispatch(setLoading(true));
 
     try {
         const { data } = await getMeAPI();
-
+dispatch(setUser(data.user));
+await handleGetFavorites();
         console.log("GET ME SUCCESS", data);
-
         dispatch(setUser(data.user));
     } catch (err) {
-        console.log("GET ME FAILED", err.response?.data);
-        console.log(err.response?.status);
+        console.log("GET ME FAILED", err.message, err.response?.status, err.response?.data);
         dispatch(setUser(null));
-        console.log("Redux user:", data.user);
     } finally {
+        console.log("handleGetMe finished");
         dispatch(setLoading(false));
     }
 };
-
     async function handleLogout() {
 
         try {

@@ -1,54 +1,39 @@
 import React, { useState, useEffect } from "react";
-import { Building2, ChevronRight, User, Clock, CheckCircle2 , 
+import {
+  Building2,
+  ChevronRight,
+  User,
+  Clock,
+  CheckCircle2,
   X,
   Mail,
-  Phone } from "lucide-react";
+  Phone,
+  MapPin,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import AdminLayout from "../components/AdminLayout";
 import StatCard from "../components/StatCard";
 import StatusBadge from "../components/StatusBadge";
 import EmptyState from "../components/EmptyState";
 import PropertyCard from "../components/PropertyCard";
-
-import { CardSkeleton , StatCardSkeleton} from "../components/LoadingSkeleton";
+import { CardSkeleton, StatCardSkeleton } from "../components/LoadingSkeleton";
 import useAdmin from "../hook/useAdmin";
+import { formatPrice } from "../../../utils/formatPrice";
+
+const AREA_UNITS = { sqft: "sq ft", acre: "acres", acres: "acres" };
 
 export default function Dashboard() {
   const {
     dashboardStats,
-    pendingProperties,
-    inquiries,
+    pendingProperties = [],
     handleDashboardStats,
     handleGetAllProperties,
     handleGetPendingProperties,
   } = useAdmin();
 
-  const statsConfig = [
-  {
-    title: "Total Properties",
-    value: dashboardStats?.totalProperties || 0,
-    icon: Building2,
-  },
-  {
-    title: "Pending",
-    value: dashboardStats?.pendingProperties || 0,
-    icon: Clock,
-  },
-  {
-    title: "Approved",
-    value: dashboardStats?.approvedProperties || 0,
-    icon: CheckCircle2,
-  },
-  {
-    title: "Users",
-    value: dashboardStats?.totalUsers || 0,
-    icon: User,
-  },
-];
-
-
   const [loading, setLoading] = useState(true);
   const [selectedProperty, setSelectedProperty] = useState(null);
+
   useEffect(() => {
     async function loadDashboard() {
       setLoading(true);
@@ -67,396 +52,235 @@ export default function Dashboard() {
     loadDashboard();
   }, []);
 
+  // Close the modal with the Escape key
+  useEffect(() => {
+    if (!selectedProperty) return;
+    const onKey = (e) => e.key === "Escape" && setSelectedProperty(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedProperty]);
+
+  const statsConfig = [
+    { title: "Total properties", value: dashboardStats?.totalProperties || 0, icon: Building2 },
+    { title: "Pending", value: dashboardStats?.pendingProperties || 0, icon: Clock },
+    { title: "Approved", value: dashboardStats?.approvedProperties || 0, icon: CheckCircle2 },
+    { title: "Users", value: dashboardStats?.totalUsers || 0, icon: User },
+  ];
+
+  const pendingCount = pendingProperties.length;
+
   return (
     <AdminLayout>
-      <div className="space-y-16 px-2 text-left animate-in fade-in duration-300">
-        
-        {/* Header Title */}
-        <div className="flex items-centre justify-centre pb-6 gap-8 ">
-    <div>
-        {/* <p className="uppercase tracking-[4px] text-xs text-stone-500 font-semibold">
-            Admin Panel
-        </p>
-
-        <h1 className="text-4xl font-bold text-stone-900 mt-2">
-            Dashboard
-        </h1> */}
-
-        {/* <p className="text-black-500 mt-2 mb-2">
-            Review new property submissions and monitor platform activity.
-        </p> */}
-    </div>
-
-    <div className="hidden lg:block">
-        {/* <div className="bg-white rounded-3xl border border-stone-200 px-8 py-5">
-            <p className="text-xs uppercase tracking-widest text-stone-500">
-                Pending
-            </p>
-
-            <h2 className="text-4xl font-bold mt-1">
-                {pendingProperties.length}
-            </h2>
-        </div> */}
-    </div>
-</div>
-
-        {/* ─── Statistics Cards ─── */}
-        {/* <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-7 mt-2">
-    {loading
-        ? Array.from({ length: 4 }).map((_, i) => (
-            <StatCardSkeleton key={i} />
-        ))
-        : statsConfig.map((card, i) => (
-            <StatCard
-                key={card.title}
-                {...card}
-                delay={i * 70}
-            />
-        ))}
-</div> */}
-
-
-{/* <div className="bg-white border border-stone-200 rounded-3xl p-8 shadow-sm">
-    <h3 className="text-lg font-bold">
-        Recent Activity
-    </h3>
-
-    <div className="mt-8 space-y-8">
-
-        <div className="flex gap-3">
-            <div className="w-2 h-2 rounded-full bg-gray-900 mt-2"></div>
-
-            <div>
-                <p className="font-medium">
-                    New property submitted
-                </p>
-
-                <p className="text-sm text-gray-500">
-                    10 minutes ago
-                </p>
-            </div>
-        </div>
-
-        <div className="flex gap-3">
-            <div className="w-2 h-2 rounded-full bg-gray-400 mt-2"></div>
-
-            <div>
-                <p className="font-medium">
-                    Property approved
-                </p>
-
-                <p className="text-sm text-gray-500">
-                    45 minutes ago
-                </p>
-            </div>
-        </div>
-
-        <div className="flex gap-3">
-            <div className="w-2 h-2 rounded-full bg-gray-300 mt-2"></div>
-
-            <div>
-                <p className="font-medium">
-                    New user registered
-                </p>
-
-                <p className="text-sm text-gray-500">
-                    Today
-                </p>
-            </div>
-        </div>
-
-    </div>
-</div>
-
-<div className="bg-white border border-gray-200 rounded-2xl p-6">
-
-    <div className="flex justify-between items-center">
-
-        <div>
-
-            <h3 className="text-lg font-bold">
-                Platform Overview
-            </h3>
-
-            <p className="text-sm text-gray-500 mt-1">
-                Current marketplace summary
-            </p>
-
-        </div>
-
-    </div>
-
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
-
-        <div>
-            <p className="text-sm text-gray-500">
-                Total Listings
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-                {dashboardStats.totalProperties}
-            </p>
-        </div>
-
-        <div>
-            <p className="text-sm text-gray-500">
-                Pending
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-                {dashboardStats.pendingProperties}
-            </p>
-        </div>
-
-        <div>
-            <p className="text-sm text-gray-500">
-                Approved
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-                {dashboardStats.approvedProperties}
-            </p>
-        </div>
-
-        <div>
-            <p className="text-sm text-gray-500">
-                Users
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-                {dashboardStats.totalUsers}
-            </p>
-        </div>
-
-    </div>
-
-</div> */}
-{/* 
-<div className="bg-white border border-gray-200 rounded-2xl p-6">
-
-    <h3 className="text-lg font-bold">
-        Recently Joined Users
-    </h3>
-
-    <div className="mt-5 divide-y divide-gray-100">
-
-        {recentUsers.map(user => (
-
-            <div
-                key={user._id}
-                className="flex justify-between items-center py-4"
+      <div className="mx-auto w-full max-w-8xl space-y-10 px-7 py-6 text-left">
+        {/* ─── Header: the one bold element on the page ─── */}
+        <section className="flex flex-col gap-6 rounded-3xl bg-gray-900 px-8 py-6 text-white sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1
+              className="text-xl font-extrabold tracking-tight"
+              style={{ fontFamily: "'Manrope', sans-serif" }}
             >
-
-                <div>
-
-                    <p className="font-semibold">
-                        {user.fullname}
-                    </p>
-
-                    <p className="text-sm text-gray-500">
-                        {user.email}
-                    </p>
-
-                </div>
-
-                <span className="text-xs text-gray-400">
-                    Today
-                </span>
-
-            </div>
-
-        ))}
-
-    </div>
-
-</div> */}
-
-{/* <div className="bg-gray-900 text-white rounded-2xl p-6">
-
-    <h2 className="text-2xl font-bold">
-
-        {pendingProperties.length} Properties waiting for review
-
-    </h2>
-
-    <p className="text-gray-300 mt-2">
-        Review them to keep listings up to date.
-    </p>
-
-    <Link
-        to="/admin/pending"
-        className="inline-flex mt-5 px-5 py-3 bg-white text-gray-900 rounded-xl font-semibold"
-    >
-        Review Now
-    </Link>
-
-</div> */}
-
-        {/* ─── Dashboard Sections Grid ─── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Left: Latest Property Submissions (2/3 width) */}
-          <div className="col-span-full space-y-10">
-            <div className="flex items-center justify-between">
-              <div>
-                <br />
-                <h2 className="text-lg font-bold text-gray-900" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                  Latest Property Submissions
-                </h2>
-                {/* <p className="text-xs text-gray-400 mt-0.5">Properties awaiting admin validation</p> */}
-              </div>
-              <Link
-                to="/admin/pending"
-                className="
-                rounded-sm
-                
-                border-stone-300
-                px-20
-                py-20
-                text-sm
-                font-medium
-                hover:bg-stone-100
-                transition
-"
-              >
-                Review Requests <ChevronRight className="w-3 h-4" />
-              </Link>
-            </div>
-            <br />
-            {loading ? (
-              <div className="grid grid-cols-3 sm:grid-cols-2 gap-8">
-                {Array.from({ length: 2 }).map((_, i) => <CardSkeleton key={i} />)}
-              </div>
-            ) : pendingProperties.length === 0 ? (
-              <div className="
-bg-white
-rounded-3xl
-border
-border-stone-200
-p-10
-">
-                <EmptyState
-                  icon={Building2}
-                  title="All caught up!"
-                  description="No properties are currently awaiting approval."
-                />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
-                {pendingProperties.slice(0, 5).map((prop) => (
-                  <PropertyCard
-                    key={prop._id}
-                    property={prop}
-                    onView={setSelectedProperty}
-                    showGallery={false}
-                  />
-                ))}
-              </div>
-            )}
+              Dashboard
+            </h1>
+            <p className="mt-2 max-w-md text-sm leading-relaxed text-gray-300">
+              {loading
+                ? "Loading the latest submissions..."
+                : pendingCount === 0
+                ? "Every submission has been reviewed."
+                : `${pendingCount} ${
+                    pendingCount === 1 ? "property is" : "properties are"
+                  } waiting for your review.`}
+            </p>
           </div>
 
-        </div>
+          <Link
+            to="/admin/pending"
+            className="inline-flex w-fit items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-gray-900 transition hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            Review requests
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        </section>
 
+        {/* ─── Statistics ─── */}
+        <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          {loading
+            ? Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)
+            : statsConfig.map((card, i) => (
+                <StatCard key={card.title} {...card} delay={i * 70} />
+              ))}
+        </section>
+
+        {/* ─── Latest submissions ─── */}
+        <section className="space-y-6">
+          <div className="flex items-end justify-between border-b border-stone-200 pb-4">
+            <div>
+              <h2
+                className="text-xl font-bold text-gray-900"
+                style={{ fontFamily: "'Manrope', sans-serif" }}
+              >
+                Latest property submissions
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Showing up to 6 of the newest listings awaiting approval.
+              </p>
+            </div>
+            <Link
+              to="/admin/pending"
+              className="hidden items-center gap-1 text-sm font-semibold text-gray-700 transition hover:text-gray-950 sm:inline-flex"
+            >
+              View all
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          {loading ? (
+            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <CardSkeleton key={i} />
+              ))}
+            </div>
+          ) : pendingCount === 0 ? (
+            <div className="rounded-3xl border border-stone-200 bg-white p-10">
+              <EmptyState
+                icon={Building2}
+                title="All caught up"
+                description="No properties are waiting for approval right now."
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+              {pendingProperties.slice(0, 6).map((prop) => (
+                <PropertyCard
+                  key={prop._id}
+                  property={prop}
+                  onView={setSelectedProperty}
+                  showGallery={false}
+                />
+              ))}
+            </div>
+          )}
+        </section>
       </div>
 
-      {/* ─── Property Details Modal ─── */}
+      {/* ─── Property details modal ─── */}
       {selectedProperty && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/35 backdrop-blur-xs" onClick={() => setSelectedProperty(null)} />
-          <div className="relative bg-white border border-gray-200 rounded-3xl shadow-xl w-full max-w-lg z-10 overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
-            
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="font-bold text-gray-900 text-sm" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                Property Submissions Detail
-              </h3>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Property submission details"
+        >
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setSelectedProperty(null)}
+          />
+
+          <div className="relative z-10 flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+            {/* Image with close button on top */}
+            <div className="relative h-56 shrink-0 bg-gray-100">
+              <img
+                src={
+                  selectedProperty.propertyImages?.[0] ||
+                  "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800&q=80"
+                }
+                alt={selectedProperty.title}
+                className="h-full w-full object-cover"
+              />
               <button
                 onClick={() => setSelectedProperty(null)}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                aria-label="Close"
+                className="absolute right-4 top-4 rounded-full bg-white/90 p-2 text-gray-700 shadow transition hover:bg-white hover:text-gray-950"
               >
-                <X className="w-4 h-4" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Scrollable Body */}
-            <div className="overflow-y-auto p-8 space-y-5 text-left">
-              {/* Image */}
-              <div className="h-48 rounded-xl overflow-hidden bg-gray-50 border border-gray-150">
-                <img
-                  src={
-                    selectedProperty.propertyImages?.[0] ||
-                    "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=600&q=80"
-                  }
-                  alt={selectedProperty.title}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-
-              {/* Title & Price */}
-              <div className="space-y-1">
-                <h2 className="text-base font-bold text-gray-900" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                  {selectedProperty.title}
-                </h2>
-                <div className="flex items-center gap-3">
-                  <span className="text-base font-extrabold text-gray-950">₹ {selectedProperty.price?.toLocaleString("en-IN")}</span>
-                  <StatusBadge status={selectedProperty.approvalStatus || selectedProperty.status} />
+            <div className="space-y-6 overflow-y-auto p-7">
+              {/* Title, location, price */}
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-4">
+                  <h2
+                    className="text-xl font-bold leading-snug text-gray-900"
+                    style={{ fontFamily: "'Manrope', sans-serif" }}
+                  >
+                    {selectedProperty.title}
+                  </h2>
+                  <StatusBadge
+                    status={selectedProperty.approvalStatus || selectedProperty.status}
+                  />
                 </div>
+                <p className="flex items-center gap-1.5 text-sm text-gray-500">
+                  <MapPin className="h-4 w-4" />
+                  {[selectedProperty.city, selectedProperty.state]
+                    .filter(Boolean)
+                    .join(", ")}
+                </p>
+                <p className="text-2xl font-extrabold text-gray-950">
+                  {formatPrice(selectedProperty.price)}
+                </p>
               </div>
 
               {/* Specifications */}
-              <div className="grid grid-cols-2 gap-y-3.5 gap-x-4 bg-gray-50 border border-gray-100 rounded-xl p-4 text-xs font-semibold text-gray-650">
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-5 rounded-2xl border border-stone-200 bg-stone-50 p-5 text-sm">
                 <div>
-                  <span className="text-gray-400 block font-normal text-[10px] uppercase tracking-wider mb-0.5">Category</span>
-                  <span className="text-gray-800 font-bold">{selectedProperty.category}</span>
+                  <dt className="text-xs text-gray-500">Category</dt>
+                  <dd className="mt-1 font-semibold text-gray-900">
+                    {selectedProperty.category}
+                  </dd>
                 </div>
                 <div>
-                  <span className="text-gray-400 block font-normal text-[10px] uppercase tracking-wider mb-0.5">City Location</span>
-                  <span className="text-gray-800 font-bold">{selectedProperty.city}</span>
+                  <dt className="text-xs text-gray-500">Area</dt>
+                  <dd className="mt-1 font-semibold text-gray-900">
+                    {selectedProperty.area}{" "}
+                    {AREA_UNITS[selectedProperty.areaUnit] || selectedProperty.areaUnit || ""}
+                  </dd>
                 </div>
                 <div>
-                  <span className="text-gray-400 block font-normal text-[10px] uppercase tracking-wider mb-0.5">Built Area</span>
-                  <span className="text-gray-800 font-bold">{selectedProperty.area} sqft</span>
+                  <dt className="text-xs text-gray-500">Bedrooms</dt>
+                  <dd className="mt-1 font-semibold text-gray-900">
+                    {selectedProperty.bedrooms}
+                  </dd>
                 </div>
                 <div>
-                  <span className="text-gray-400 block font-normal text-[10px] uppercase tracking-wider mb-0.5">Configurations</span>
-                  <span className="text-gray-800 font-bold">{selectedProperty.bedrooms} BHK ({selectedProperty.bathrooms} Bath)</span>
+                  <dt className="text-xs text-gray-500">Bathrooms</dt>
+                  <dd className="mt-1 font-semibold text-gray-900">
+                    {selectedProperty.bathrooms}
+                  </dd>
                 </div>
-              </div>
+              </dl>
 
-              {/* Seller details */}
-              <div className="border-t border-gray-100 pt-4 space-y-3">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Seller Contact details</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-700 text-xs border border-gray-200">
-                    {selectedProperty.seller?.fullname?.charAt(0)}
+              {/* Seller */}
+              <div className="rounded-2xl border border-stone-200 p-5">
+                <p className="mb-4 text-sm font-semibold text-gray-900">Seller</p>
+                <div className="flex items-center gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-900 text-sm font-bold text-white">
+                    {selectedProperty.seller?.fullname?.charAt(0)?.toUpperCase()}
                   </div>
-                  <div>
-                    <p className="text-xs font-bold text-gray-800">{selectedProperty.seller?.fullname}</p>
-                    <div className="text-[10px] text-gray-400 space-y-0.5 mt-0.5">
-                      <p className="flex items-center gap-1">
-                        <Mail className="w-3 h-3 text-gray-400" />
-                        {selectedProperty.seller?.email}
-                      </p>
-                      <p className="flex items-center gap-1">
-                        <Phone className="w-3 h-3 text-gray-400" />
-                        {selectedProperty.seller?.contact}
-                      </p>
-                    </div>
+                  <div className="min-w-0 space-y-1 text-sm">
+                    <p className="font-semibold text-gray-900">
+                      {selectedProperty.seller?.fullname}
+                    </p>
+                    <p className="flex items-center gap-2 text-gray-500">
+                      <Mail className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{selectedProperty.seller?.email}</span>
+                    </p>
+                    <p className="flex items-center gap-2 text-gray-500">
+                      <Phone className="h-3.5 w-3.5 shrink-0" />
+                      {selectedProperty.seller?.contact}
+                    </p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+            <div className="flex justify-end border-t border-stone-200 bg-stone-50 px-7 py-4">
               <button
                 onClick={() => setSelectedProperty(null)}
-                className="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-100 rounded-xl transition-colors"
+                className="rounded-xl border border-stone-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-stone-100"
               >
                 Close
               </button>
             </div>
-
           </div>
         </div>
       )}
