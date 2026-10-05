@@ -10,7 +10,7 @@ import adminRouter from "./routes/admin.routes.js";
 const app = express()
 
 app.use(cors({
-    origin : "http://localhost:5173",
+    origin : "https://propertypoint-frontend.onrender.com",
     credentials : true
 }))
 app.use(express.json())
