@@ -12,8 +12,8 @@ async function createToken(res , user , message){
 
     res.cookie("token", token, {
         httpOnly: true,
-        sameSite: "lax",
-        secure: config.NODE_ENV === "production"
+        sameSite: "none",
+        secure: true
     })
 
     res.status(201).json({
@@ -134,10 +134,10 @@ export async function getMe(req , res){
 }
 
 export async function logout(req , res){
-    res.clearCookie("token",{
-        httpOnly:true,
-        sameSite:"lax",
-        secure:process.env.NODE_ENV==="production"
+    res.clearCookie("token", {
+        httpOnly: true,
+        sameSite: "none",
+        secure: true
     })
 
     res.status(200).json({
