@@ -79,7 +79,7 @@ const { handleLogout } = useAuth();
     Login
 </Link>
 
-<Link to="/register" className="lp-btn lp-btn--primary">
+<Link to="/register" className="lp-btn lp-btn--outline">
     Register
 </Link>
     </>
