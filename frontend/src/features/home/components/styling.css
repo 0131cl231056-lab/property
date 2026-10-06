@@ -101,3 +101,8 @@
 }
 
 }
+@media (max-width: 992px){
+    .lp-nav-drawer__actions .lp-btn--primary{
+        color:white;
+    }
+}
