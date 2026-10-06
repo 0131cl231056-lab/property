@@ -116,31 +116,84 @@ const { handleLogout } = useAuth();
       </nav>
 
       {/* Mobile Drawer */}
-      <div className={`lp-nav-drawer${menuOpen ? ' open' : ''}`}>
-        {navLinks.map((link) =>
-            link.to ? (
-              <Link
-                key={link.label}
-                to={link.to}
-                onClick={() => setMenuOpen(false)}
-              >
-                {link.label}
-              </Link>
-            ) : (
-              <a
-                key={link.label}
-                href={link.href}
-                onClick={() => setMenuOpen(false)}
-              >
-                {link.label}
-              </a>
-            )
-          )}
-        <div className="lp-nav-drawer__actions">
-          <Link to="/login"    className="lp-btn lp-btn--outline" onClick={() => setMenuOpen(false)}>Login</Link>
-          {/* <Link to="/register" className="lp-btn lp-btn--primary" onClick={() => setMenuOpen(false)}>Register</Link> */}
-        </div>
-      </div>
+      {/* Mobile Drawer */}
+<div className={`lp-nav-drawer${menuOpen ? ' open' : ''}`}>
+  {navLinks.map((link) =>
+    link.to ? (
+      <Link
+        key={link.label}
+        to={link.to}
+        onClick={() => setMenuOpen(false)}
+      >
+        {link.label}
+      </Link>
+    ) : (
+      <a
+        key={link.label}
+        href={link.href}
+        onClick={() => setMenuOpen(false)}
+      >
+        {link.label}
+      </a>
+    )
+  )}
+
+  {/* Favorites */}
+  <Link
+    to="/favorites"
+    onClick={() => setMenuOpen(false)}
+  >
+    Favorites
+  </Link>
+
+  <div className="lp-nav-drawer__actions">
+
+    {!user ? (
+      <>
+        <Link
+          to="/login"
+          className="lp-btn lp-btn--outline"
+          onClick={() => setMenuOpen(false)}
+        >
+          Login
+        </Link>
+
+        <Link
+          to="/register"
+          className="lp-btn lp-btn--primary"
+          onClick={() => setMenuOpen(false)}
+        >
+          Register
+        </Link>
+      </>
+    ) : user.role === "admin" ? (
+      <>
+        <Link
+          to="/admin/dashboard"
+          className="lp-btn lp-btn--outline"
+          onClick={() => setMenuOpen(false)}
+        >
+          Dashboard
+        </Link>
+
+        <button
+          className="lp-btn lp-btn--primary"
+          onClick={logout}
+        >
+          Logout
+        </button>
+      </>
+    ) : (
+      <button
+        className="lp-btn lp-btn--primary"
+        onClick={logout}
+      >
+        Logout
+      </button>
+    )}
+
+  </div>
+</div>
     </>
   );
 };
